@@ -63,125 +63,134 @@ int ground_tick;
 
 Vector OldOrigin;
 
-void AnimationFix(ClientFrameStage_t stage){
-//{
-//	if (!GLOBAL::LocalPlayer->IsAlive())
-//		return;
-//
-//	static int userId[64];
-//	static SDK::CAnimationLayer
-//		backupLayersUpdate[64][15],
-//		backupLayersInterp[64][15];
-//
-//	for (int i = 1; i < INTERFACES::Globals->maxclients; i++)
-//	{
-//		SDK::CBaseEntity* player = INTERFACES::->GetClientEntity(i);
-//		if (player != nullptr)
-//		{
-//			// aw reversed; useless, you miss more with it than without it -> missing for sure other code parts 
-//			// to make this work lel 
-//			auto& lag_records = this->PlayerRecord[player->GetIndex()].records;
-//
-//			auto leet = [](SDK::CBaseEntity *player) -> void
-//			{
-//				static SDK::ConVar *sv_pvsskipanimation = INTERFACES::cvar->FindVar("sv_pvsskipanimation");
-//
-//				int32_t backup_sv_pvsskipanimation = sv_pvsskipanimation->GetInt();
-//				sv_pvsskipanimation->SetValue(0);
-//
-//				*(int32_t*)((uintptr_t)player + 0xA30) = 0;
-//				*(int32_t*)((uintptr_t)player + 0x269C) = 0;
-//
-//				int32_t backup_effects = *(int32_t*)((uintptr_t)player + 0xEC);
-//				*(int32_t*)((uintptr_t)player + 0xEC) |= 8;
-//
-//				player->SetupBones(NULL, -1, 0x7FF00, g_pGlobals->curtime);
-//
-//				*(int32_t*)((uintptr_t)player + 0xEC) = backup_effects;
-//				sv_pvsskipanimation->SetValue(backup_sv_pvsskipanimation);
-//			};
-//
-//			// backup 
-//			const float curtime = g_pGlobals->curtime;
-//			const float frametime = g_pGlobals->frametime;
-//
-//			static auto host_timescale = INTERFACES::cvar->FindVar(("host_timescale"));
-//
-//			g_pGlobals->frametime = g_pGlobals->interval_per_tick * host_timescale->GetFloat();
-//			g_pGlobals->curtime = player->GetOldSimulationTime() + g_pGlobals->interval_per_tick;
-//
-//			Vector backup_origin = player->GetVecOrigin();
-//			Vector backup_absorigin = player->GetAbsOrigin();
-//			Vector backup_velocity = player->GetVelocity();
-//			int backup_flags = player->GetFlags();
-//
-//			if (lag_records.size() > 2)
-//			{
-//				bool bChocked = TIME_TO_TICKS(player->GetSimulationTime() - lag_records.back().m_flSimulationTime) > 1;
-//				bool bInAir = false;
-//
-//				if (!(player->GetFlags() & FL_ONGROUND) || !(lag_records.back().m_nFlags & FL_ONGROUND))
-//					bInAir = true;
-//
-//				if (bChocked)
-//				{
-//					player->GetVecOrigin() = lag_records.back().m_vecOrigin;
-//					player->SetAbsOrigin(lag_records.back().m_vecAbsOrigin);
-//					player->GetVelocity() = lag_records.back().m_vecVelocity;
-//					player->GetFlags() = lag_records.back().m_nFlags;
-//				}
-//
-//				Vector data_origin = player->GetVecOrigin();
-//				Vector data_velocity = player->GetVelocity();
-//				int data_flags = *player->GetFlags();
-//				Vector position = lag_records.back().m_vecOrigin;
-//				if (bChocked)
-//				{
-//					// ExtrapolatePosition(player, position, lag_records.back().m_flSimulationTime, lag_records.back().m_vecVelocity); 
-//					meme(data_velocity, data_origin, player, data_flags, bInAir);
-//					player->GetVecOrigin() = data_origin;
-//					player->SetAbsOrigin(data_origin);
-//					player->GetVelocity() = data_velocity;
-//
-//					player->GetFlags() &= 0xFFFFFFFE;
-//					auto penultimate_record = *std::prev(lag_records.end(), 2);
-//					if ((lag_records.back().m_nFlags & FL_ONGROUND) && (penultimate_record.m_nFlags & FL_ONGROUND))
-//						*player->GetFlags() |= 1;
-//					if (*(float*)((uintptr_t)player->GetAnimOverlay(0) + 0x138) > 0.f)
-//						*player->GetFlags() |= 1;
-//				}
-//			}
-//			auto GetClientSideAnimation = player->GetClientSideAnimation();
-//			SDK::CAnimationLayer backup_layers[15];
-//			std::memcpy(backup_layers, player->GetAnimOverlays(), (sizeof(SDK::CAnimationLayer) * player->GetNumAnimOverlays()));
-//
-//			// invalidates prior animations so the entity gets animated on our client 100% via UpdateClientSideAnimation 
-//			CBasePlayerAnimState *state = player->GetBasePlayerAnimState();
-//			if (state)
-//				state->m_iLastClientSideAnimationUpdateFramecount = g_pGlobals->framecount - 1;
-//
-//			GetClientSideAnimation = true;
-//
-//			// updates local animations + poses + calculates new abs angle based on eyeangles and other stuff 
-//			player->UpdateClientSideAnimation();
-//
-//			GetClientSideAnimation = false;
-//
-//
-//
-//			// restore 
-//			std::memcpy(player->GetAnimOverlays(), backup_layers, (sizeof(SDK::CAnimationLayer) * player->GetNumAnimOverlays()));
-//			player->GetVecOrigin() =
-//				backup_origin;
-//			player->SetAbsOrigin(backup_absorigin);
-//			player->GetVelocity() = backup_velocity;
-//			player->GetFlags() = backup_flags;
-//			g_pGlobals->curtime = curtime;
-//			g_pGlobals->frametime = frametime;
-//
-//			leet(player);
-//		}
-//	}
+void AnimFix(SDK::CBaseEntity* entity)
+{
+
+	auto local_player = INTERFACES::ClientEntityList->GetClientEntity(INTERFACES::Engine->GetLocalPlayer());
+
+	if (!local_player)
+		return;
+
+	bool is_local_player = entity == local_player;
+	bool is_teammate = local_player->GetTeam() == entity->GetTeam() && !is_local_player;
+
+	if (is_local_player)
+		return;
+
+
+
+	struct clientanimating_t
+	{
+		SDK::CBaseAnimating *pAnimating;
+		unsigned int	flags;
+		clientanimating_t(SDK::CBaseAnimating *_pAnim, unsigned int _flags) : pAnimating(_pAnim), flags(_flags) {}
+	};
+
+
+	clientanimating_t *animating = nullptr;
+	int animflags;
+
+	const unsigned int FCLIENTANIM_SEQUENCE_CYCLE = 0x00000001;
+
+
+	SDK::CAnimationLayer AnimLayer[15];
+
+	int cnt = 15;
+	for (int i = 0; i < cnt; i++)
+	{
+		AnimLayer[i] = entity->GetAnimOverlay(i);
+	}
+
+	float flPoseParameter[24];
+	float* pose = (float*)((uintptr_t)entity + 0x2764);
+	memcpy(&flPoseParameter, pose, sizeof(float) * 24);
+
+	Vector TargetEyeAngles = *entity->GetEyeAnglesPointer();
+
+	bool bForceAnimationUpdate = entity->GetEyeAnglesPointer()->x != TargetEyeAngles.x || entity->GetEyeAnglesPointer()->y != TargetEyeAngles.y;
+
+	if (bForceAnimationUpdate)
+	{
+		//Update animations and pose parameters
+		clientanimating_t *animating = nullptr;
+		int animflags;
+
+		//Make sure game is allowed to client side animate. Probably unnecessary
+		for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+		{
+			clientanimating_t *tanimating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+			SDK::CBaseEntity *pAnimEntity = (SDK::CBaseEntity*)tanimating->pAnimating;
+			if (pAnimEntity == entity)
+			{
+				animating = tanimating;
+				animflags = tanimating->flags;
+				tanimating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
+				break;
+			}
+		}
+
+		//Update animations/poses
+		entity->UpdateClientSideAnimation();
+
+		//Restore anim flags
+		if (animating)
+			animating->flags = animflags;
+	}
+	for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+	{
+		clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+		SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
+		if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
+		{
+
+			int TickReceivedNetUpdate[65];
+
+			TickReceivedNetUpdate[entity->GetIndex()] = INTERFACES::Globals->tickcount;
+
+			bool HadClientAnimSequenceCycle[65];
+
+			int ClientSideAnimationFlags[65];
+			bool IsBreakingLagCompensation[65];
+			IsBreakingLagCompensation[entity->GetIndex()] = !Entity->GetIsDormant() && entity->GetVecOrigin().LengthSqr() > (64.0f * 64.0f);
+
+			unsigned int flags = animating->flags;
+			ClientSideAnimationFlags[entity->GetIndex()] = flags;
+			HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
+			if (HadClientAnimSequenceCycle[entity->GetIndex()])
+			{
+				if (IsBreakingLagCompensation[entity->GetIndex()] && INTERFACES::Globals->tickcount != TickReceivedNetUpdate[entity->GetIndex()])
+				{
+					Entity->UpdateClientSideAnimation();
+					//Store the new animations
+					Entity->CopyPoseParameters(flPoseParameter);
+					Entity->CopyAnimLayers(AnimLayer);
+				}
+			}
+		}
+	}
+	if (is_local_player) {
+
+		for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+		{
+			clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+			SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
+			if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
+			{
+				bool HadClientAnimSequenceCycle[65];
+
+				int ClientSideAnimationFlags[65];
+
+				unsigned int flags = animating->flags;
+				ClientSideAnimationFlags[entity->GetIndex()] = flags;
+				HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
+
+				if (HadClientAnimSequenceCycle[entity->GetIndex()])
+				{
+					animating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
+				}
+			}
+		}
+	}
 }
 
 void ground_ticks()
@@ -322,6 +331,16 @@ namespace HOOKS
 					INTERFACES::Engine->GetViewAngles(GLOBAL::real_angles);
 					INTERFACES::Engine->GetViewAngles(GLOBAL::fake_angles);
 				}
+				
+				auto Animations = local_player->GetAnimState();
+				if (!Animations)
+					return false;
+
+				if (Animations->m_iLastClientSideAnimationUpdateFramecount)
+					Animations->m_iLastClientSideAnimationUpdateFramecount--;
+
+				if (Animations->m_flLastClientSideAnimationUpdateTime)
+					Animations->m_flLastClientSideAnimationUpdateTime -= INTERFACES::Globals->interval_per_tick;
 			}
 			prediction->end_prediction(cmd); //end prediction
 		}
@@ -406,96 +425,7 @@ namespace HOOKS
 					if (entity->GetHealth() <= 0)
 						continue;
 
-					struct clientanimating_t
-					{
-						SDK::CBaseAnimating *pAnimating;
-						unsigned int	flags;
-						clientanimating_t(SDK::CBaseAnimating *_pAnim, unsigned int _flags) : pAnimating(_pAnim), flags(_flags) {}
-					};
-
-
-					clientanimating_t *animating = nullptr;
-					int animflags;
-
-					const unsigned int FCLIENTANIM_SEQUENCE_CYCLE = 0x00000001;
-
-
-					SDK::CAnimationLayer AnimLayer[15];
-
-					int cnt = 15;
-					for (int i = 0; i < cnt; i++)
-					{
-						AnimLayer[i] = entity->GetAnimOverlay(i);
-					}
-
-					float flPoseParameter[24];
-					float* pose = (float*)((uintptr_t)entity + 0x2764);
-					memcpy(&flPoseParameter, pose, sizeof(float) * 24);
-
-					Vector TargetEyeAngles = *entity->GetEyeAnglesPointer();
-
-					bool bForceAnimationUpdate = entity->GetEyeAnglesPointer()->x != TargetEyeAngles.x || entity->GetEyeAnglesPointer()->y != TargetEyeAngles.y;
-
-					if (bForceAnimationUpdate)
-					{
-						//Update animations and pose parameters
-						clientanimating_t *animating = nullptr;
-						int animflags;
-
-						//Make sure game is allowed to client side animate. Probably unnecessary
-						for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
-						{
-							clientanimating_t *tanimating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
-							SDK::CBaseEntity *pAnimEntity = (SDK::CBaseEntity*)tanimating->pAnimating;
-							if (pAnimEntity == entity)
-							{
-								animating = tanimating;
-								animflags = tanimating->flags;
-								tanimating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
-								break;
-							}
-						}
-
-						//Update animations/poses
-						entity->UpdateClientSideAnimation();
-
-						//Restore anim flags
-						if (animating)
-							animating->flags = animflags;
-					}
-					for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
-					{
-						clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
-						SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
-						if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
-						{
-
-							int TickReceivedNetUpdate[65];
-
-							TickReceivedNetUpdate[entity->GetIndex()] = INTERFACES::Globals->tickcount;
-
-							bool HadClientAnimSequenceCycle[65];
-
-							int ClientSideAnimationFlags[65];
-							bool IsBreakingLagCompensation[65];
-							IsBreakingLagCompensation[entity->GetIndex()] = !Entity->GetIsDormant() && entity->GetVecOrigin().LengthSqr() > (64.0f * 64.0f);
-
-							unsigned int flags = animating->flags;
-							ClientSideAnimationFlags[entity->GetIndex()] = flags;
-							HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
-							if (HadClientAnimSequenceCycle[entity->GetIndex()])
-							{
-								if (IsBreakingLagCompensation[entity->GetIndex()] && INTERFACES::Globals->tickcount != TickReceivedNetUpdate[entity->GetIndex()])
-								{
-									Entity->UpdateClientSideAnimation();
-									//Store the new animations
-									Entity->CopyPoseParameters(flPoseParameter);
-									Entity->CopyAnimLayers(AnimLayer);
-								}
-							}
-						}
-					}
-
+					
 					if (SETTINGS::settings.resolver_bool)
 						resolver->resolve(entity);
 				}
@@ -534,118 +464,15 @@ namespace HOOKS
 					if (entity->GetHealth() <= 0)
 						continue;
 
-					struct clientanimating_t
-					{
-						SDK::CBaseAnimating *pAnimating;
-						unsigned int	flags;
-						clientanimating_t(SDK::CBaseAnimating *_pAnim, unsigned int _flags) : pAnimating(_pAnim), flags(_flags) {}
-					};
+						auto Animationss = entity->GetAnimState();
+					if (Animationss->m_iLastClientSideAnimationUpdateFramecount)
+						Animationss->m_iLastClientSideAnimationUpdateFramecount--;
+
+					if (Animationss->m_flLastClientSideAnimationUpdateTime)
+						Animationss->m_flLastClientSideAnimationUpdateTime -= INTERFACES::Globals->interval_per_tick;
 
 
-					clientanimating_t *animating = nullptr;
-					int animflags;
-
-					const unsigned int FCLIENTANIM_SEQUENCE_CYCLE = 0x00000001;
-
-
-					SDK::CAnimationLayer AnimLayer[15];
-
-					int cnt = 15;
-					for (int i = 0; i < cnt; i++)
-					{
-						AnimLayer[i] = entity->GetAnimOverlay(i);
-					}
-
-					float flPoseParameter[24];
-					float* pose = (float*)((uintptr_t)entity + 0x2764);
-					memcpy(&flPoseParameter, pose, sizeof(float) * 24);
-
-					Vector TargetEyeAngles = *entity->GetEyeAnglesPointer();
-
-					bool bForceAnimationUpdate = entity->GetEyeAnglesPointer()->x != TargetEyeAngles.x || entity->GetEyeAnglesPointer()->y != TargetEyeAngles.y;
-
-					if (bForceAnimationUpdate)
-					{
-						//Update animations and pose parameters
-						clientanimating_t *animating = nullptr;
-						int animflags;
-
-						//Make sure game is allowed to client side animate. Probably unnecessary
-						for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
-						{
-							clientanimating_t *tanimating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
-							SDK::CBaseEntity *pAnimEntity = (SDK::CBaseEntity*)tanimating->pAnimating;
-							if (pAnimEntity == entity)
-							{
-								animating = tanimating;
-								animflags = tanimating->flags;
-								tanimating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
-								break;
-							}
-						}
-
-						//Update animations/poses
-						entity->UpdateClientSideAnimation();
-
-						//Restore anim flags
-						if (animating)
-							animating->flags = animflags;
-					}
-					for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
-					{
-						clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
-						SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
-						if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
-						{
-
-							int TickReceivedNetUpdate[65];
-
-							TickReceivedNetUpdate[entity->GetIndex()] = INTERFACES::Globals->tickcount;
-
-							bool HadClientAnimSequenceCycle[65];
-
-							int ClientSideAnimationFlags[65];
-							bool IsBreakingLagCompensation[65];
-							IsBreakingLagCompensation[entity->GetIndex()] = !Entity->GetIsDormant() && entity->GetVecOrigin().LengthSqr() > (64.0f * 64.0f);
-
-							unsigned int flags = animating->flags;
-							ClientSideAnimationFlags[entity->GetIndex()] = flags;
-							HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
-							if (HadClientAnimSequenceCycle[entity->GetIndex()])
-							{
-								if (IsBreakingLagCompensation[entity->GetIndex()] && INTERFACES::Globals->tickcount != TickReceivedNetUpdate[entity->GetIndex()])
-								{
-									Entity->UpdateClientSideAnimation();
-									//Store the new animations
-									Entity->CopyPoseParameters(flPoseParameter);
-									Entity->CopyAnimLayers(AnimLayer);
-								}
-							}
-						}
-					}
-					if (is_local_player) {
-
-						for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
-						{
-							clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
-							SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
-							if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
-							{
-								bool HadClientAnimSequenceCycle[65];
-
-								int ClientSideAnimationFlags[65];
-
-								unsigned int flags = animating->flags;
-								ClientSideAnimationFlags[entity->GetIndex()] = flags;
-								HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
-
-								if (HadClientAnimSequenceCycle[entity->GetIndex()])
-								{
-									animating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
-								}
-							}
-						}
-					}
+					AnimFix(entity);
 				}
 
 				auto local_player = INTERFACES::ClientEntityList->GetClientEntity(INTERFACES::Engine->GetLocalPlayer());
