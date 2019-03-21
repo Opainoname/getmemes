@@ -7,6 +7,7 @@ namespace SDK
 	class CInput
 	{
 	public:
+		char afhjsaaf[8];
 		void*               pvftable;                     //0x00
 		bool                m_fTrackIRAvailable;          //0x04
 		bool                m_fMouseInitialized;          //0x05

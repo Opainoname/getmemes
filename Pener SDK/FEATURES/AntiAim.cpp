@@ -52,7 +52,7 @@ bool next_lby_update(SDK::CUserCmd* m_pcmd) {
 		static bool stop;
 		stop = local_player->GetVelocity().Length2D() < 0.1 && local_player->GetFlags() & FL_ONGROUND;
 		in_air = !(local_player->GetFlags() & FL_ONGROUND);
-		if (stop || fake_walk || in_air) {
+		if (stop) {
 			if ((next_lby_update_time < current_time)) {
 				next_lby_update_time = current_time + 1.1f;
 				return true;
@@ -309,13 +309,15 @@ void CAntiAim::do_antiaim(SDK::CUserCmd* cmd)
 	if (cmd->buttons & IN_ATTACK && aimbot->can_shoot(cmd))
 		return;
 
-	if (weapon->get_full_info()->WeaponType == 9)
+	if (weapon->get_full_info()->type == 9)
 		return;
 
 	if (local_player->GetMoveType() == SDK::MOVETYPE_NOCLIP || local_player->GetMoveType() == SDK::MOVETYPE_LADDER)
 		return;
 
-
+	if (!SETTINGS::settings.lag_bool) {
+		GLOBAL::should_send_packet = !(GLOBAL::cmd->command_number % 3) ? true : false;
+	}
 
 
 	if (SETTINGS::settings.aa_bool)

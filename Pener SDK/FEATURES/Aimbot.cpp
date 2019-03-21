@@ -54,7 +54,7 @@ float CAimbot::seedchance(Vector Point)
 	if (!weapon)
 		return 0;
 
-	float SpreadCone = weapon->GetInaccuracy() * 256.0f / M_PI + weapon->get_full_info()->flInaccuracyMove * local_player->GetVelocity().Length() / 3000.0f;
+	float SpreadCone = weapon->GetInaccuracy() * 256.0f / M_PI + weapon->get_full_info()->max_speed_alt * local_player->GetVelocity().Length() / 3000.0f;
 	Vector local_position = local_player->GetVecOrigin() + local_player->GetViewOffset();
 
 	float a = (Point - local_position).Length();
@@ -183,7 +183,7 @@ void CAimbot::auto_revolver(SDK::CUserCmd* cmd)
 	if (!weapon)
 		return;
 
-	if (weapon->WeaponID() == SDK::ItemDefinitionIndex::WEAPON_REVOLVER)
+	if (weapon->GetItemDefenitionIndex() == SDK::ItemDefinitionIndex::WEAPON_REVOLVER)
 	{
 		cmd->buttons |= IN_ATTACK;
 
@@ -251,7 +251,7 @@ void CAimbot::AutoZeus(SDK::CUserCmd* cmd) {
 		return;
 
 	if (weapon->GetItemDefenitionIndex() == SDK::ItemDefinitionIndex::WEAPON_TASER) {
-		if (playerDistance <= 184.f)
+		if (playerDistance <= 175.f)
 			cmd->buttons |= IN_ATTACK;
 	}
 }
@@ -291,7 +291,7 @@ bool IsZeus(void* weapon)
 	SDK::CBaseEntity* weaponEnt = (SDK::CBaseEntity*)weapon;
 	SDK::ClientClass* pWeaponClass = weaponEnt->GetClientClass();
 
-	if (pWeaponClass->m_ClassID == 239)
+	if (weaponEnt->GetActiveWeaponIndex() == SDK::ItemDefinitionIndex::WEAPON_TASER)
 		return true;
 	else
 		return false;
@@ -333,11 +333,14 @@ void CAimbot::shoot_enemy(SDK::CUserCmd* cmd)
 		if (!weapon)
 			continue;
 
-		if (weapon->get_full_info()->WeaponType == 9 || weapon->get_full_info()->WeaponType == 0)
+		if (weapon->get_full_info()->type == 9 || weapon->get_full_info()->type == 0)
 			continue;
 
 		if (weapon->GetLoadedAmmo() == 0)
 			continue;
+
+		if (local_player->GetImmunity())
+			return;
 
 		//std::cout << weapon->GetWeaponInfo()->m_WeaponType << std::endl;
 
@@ -387,18 +390,17 @@ void CAimbot::shoot_enemy(SDK::CUserCmd* cmd)
 				Vector scan = SETTINGS::settings.acc_type == 0 ? head_point : scan_point;
 				if (autowall->CalculateDamage(local_position, scan, local_player, entity).damage > SETTINGS::settings.damage_val && can_shoot(cmd)) //targetp, 15
 				{
-					if (SETTINGS::settings.reverse_bool)
-						GLOBAL::should_send_packet = false;
+				
 
 					cmd->viewangles = MATH::NormalizeAngle(UTILS::CalcAngle(local_position, scan));
 
 
 					if (SETTINGS::settings.scope_bool)
 					{
-						if (weapon->get_full_info()->WeaponType == 5 && !local_player->GetIsScoped())
+						if (weapon->get_full_info()->type == 5 && !local_player->GetIsScoped())
 						{
 							cmd->buttons |= IN_ATTACK2;
-							return;
+							//return;
 						}
 					}
 
@@ -485,7 +487,7 @@ float CAimbot::accepted_inaccuracy(SDK::CBaseWeapon* weapon) //ayyyyyywareeee
 	if (!weapon)
 		return 0;
 
-	float hitchance = 101; //lol idk why, its pasted anyway so w/e
+	float hitchance = 100; //lol idk why, its pasted anyway so w/e
 	float inaccuracy = weapon->GetInaccuracy();
 
 	if (inaccuracy == 0) 
@@ -523,7 +525,7 @@ int CAimbot::select_target()
 	}
 }*/
 
-static std::vector<Vector> GetMultiplePointsForHitbox(SDK::CBaseEntity* Local, SDK::CBaseEntity* pBaseEntity, int iHitbox, matrix3x4_t BoneMatrix[])
+std::vector<Vector> GetMultiplePointsForHitbox(SDK::CBaseEntity* Local, SDK::CBaseEntity* pBaseEntity, int iHitbox, matrix3x4_t BoneMatrix[])
 {
 	auto VectorTransform_Wrapper = [](const Vector& in1, const matrix3x4_t &in2, Vector &out)
 	{
@@ -936,7 +938,7 @@ int CAimbot::get_damage(Vector position) //not needed, thanks autowall!
 		if (!weapon_info)
 			return -1;
 
-		return weapon_info->iDamage;
+		return weapon_info->damage;
 		return 1;
 	}
 	else

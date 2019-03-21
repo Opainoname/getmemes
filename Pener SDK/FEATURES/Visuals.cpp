@@ -409,7 +409,7 @@ void CVisuals::DrawAmmo(SDK::CBaseEntity* entity, CColor color, CColor dormant)
 		auto activity = entity->GetSequenceActivity(animLayer.m_nSequence);
 
 		int iClip = c_baseweapon->GetLoadedAmmo();
-		int iClipMax = c_baseweapon->get_full_info()->iMaxClip1;
+		int iClipMax = c_baseweapon->get_full_info()->max_clip;
 
 		float box_w = (float)fabs(height / 2);
 		float width;

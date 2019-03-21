@@ -31,12 +31,12 @@ namespace INTERFACES
 	CUtlVectorSimple *g_ClientSideAnimationList;
 	void InitInterfaces()
 	{
-		Client = reinterpret_cast<SDK::IClient*>(FindInterface("client.dll", "VClient"));
-		Input = *reinterpret_cast<SDK::CInput**>((*(DWORD**)Client)[15] + 0x1);
+		Client = reinterpret_cast<SDK::IClient*>(FindInterface("client_panorama.dll", "VClient"));
+		Input = *(SDK::CInput**)(UTILS::FindSignature("client_panorama.dll", "B9 ? ? ? ? F3 0F 11 04 24 FF 50 10") + 0x1); 
 		Panel = reinterpret_cast<SDK::CPanel*>(FindInterface("vgui2.dll", "VGUI_Panel"));
 		Surface = reinterpret_cast<SDK::ISurface*>(FindInterface("vguimatsurface", "VGUI_Surface"));
 		Engine = reinterpret_cast<SDK::IEngine*>(FindInterface("engine.dll", "VEngineClient"));
-		ClientEntityList = reinterpret_cast<SDK::CClientEntityList*>(FindInterface("client.dll", "VClientEntityList"));
+		ClientEntityList = reinterpret_cast<SDK::CClientEntityList*>(FindInterface("client_panorama.dll", "VClientEntityList"));
 		DebugOverlay = reinterpret_cast<SDK::IVDebugOverlay*>(FindInterface("engine.dll", "VDebugOverlay"));
 		Trace = reinterpret_cast<SDK::CTrace*>(FindInterface("engine.dll", "EngineTraceClient"));
 		ModelInfo = reinterpret_cast<SDK::CModelInfo*>(FindInterface("engine.dll", "VModelInfoClient"));
@@ -47,16 +47,16 @@ namespace INTERFACES
 		MaterialSystem = reinterpret_cast<SDK::IMaterialSystem*>(FindInterface("materialsystem.dll", "VMaterialSystem"));
 		PhysicsProps = reinterpret_cast<SDK::IPhysicsProps*>(FindInterface("vphysics.dll", "VPhysicsSurfaceProps"));
 		GameEventManager = reinterpret_cast<SDK::IGameEventManager*>(FindInterfaceEx("engine.dll", "GAMEEVENTSMANAGER002"));
-		ViewRenderBeams = *reinterpret_cast<SDK::IViewRenderBeams**>(UTILS::FindSignature("client.dll", "A1 ? ? ? ? 56 8B F1 B9 ? ? ? ? FF 50 08") + 0x1);
+		ViewRenderBeams = *reinterpret_cast<SDK::IViewRenderBeams**>(UTILS::FindSignature("client_panorama.dll", "A1 ? ? ? ? 56 8B F1 B9 ? ? ? ? FF 50 08") + 0x1);
 
-		pPrediction = reinterpret_cast<SDK::CPrediction*>(FindInterfaceEx("client.dll", "VClientPrediction001"));
-		pMovement = reinterpret_cast<SDK::IGameMovement*>(FindInterfaceEx("client.dll", "GameMovement001"));
-		pMoveHelper = **reinterpret_cast<SDK::IMoveHelper***>((UTILS::FindSignature("client.dll", "8B 0D ? ? ? ? 8B 46 08 68") + 0x2));
+		pPrediction = reinterpret_cast<SDK::CPrediction*>(FindInterfaceEx("client_panorama.dll", "VClientPrediction001"));
+		pMovement = reinterpret_cast<SDK::IGameMovement*>(FindInterfaceEx("client_panorama.dll", "GameMovement001"));
+		pMoveHelper = **reinterpret_cast<SDK::IMoveHelper***>((UTILS::FindSignature("client_panorama.dll", "8B 0D ? ? ? ? 8B 46 08 68") + 0x2));
 
-		g_GlowObjManager = *reinterpret_cast<SDK::CGlowObjectManager**>(UTILS::FindSignature("client.dll", "0F 11 05 ? ? ? ? 83 C8 01") + 3);
+		g_GlowObjManager = *reinterpret_cast<SDK::CGlowObjectManager**>(UTILS::FindSignature("client_panorama.dll", "0F 11 05 ? ? ? ? 83 C8 01") + 3);
 
 
-		g_ClientSideAnimationList = (CUtlVectorSimple*)*(DWORD*)(UTILS::FindSignature("client.dll", "A1 ? ? ? ? F6 44 F0 04 01 74 0B") + 1);
+		g_ClientSideAnimationList = (CUtlVectorSimple*)*(DWORD*)(UTILS::FindSignature("client_panorama.dll", "A1 ? ? ? ? F6 44 F0 04 01 74 0B") + 1);
 
 		Globals = **reinterpret_cast<SDK::CGlobalVars***>((*reinterpret_cast< DWORD** >(Client))[0] + 0x1B);
 		void** pClientTable = *reinterpret_cast<void***>(Client);

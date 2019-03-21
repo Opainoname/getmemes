@@ -5,7 +5,7 @@ namespace SDK
 	class CBaseAnimState
 	{
 	public:
-		char pad[3];
+		char pad[4];
 		char bUnknown; //0x4
 		char pad2[91];
 		void* pBaseEntity; //0x60

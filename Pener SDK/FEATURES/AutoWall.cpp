@@ -12,6 +12,103 @@
 
 static bool is_autowalling = false;
 
+
+bool TraceToExit(Vector& end, SDK::trace_t& tr, float x, float y, float z, float x2, float y2, float z2, SDK::trace_t* trace)
+{
+
+	typedef bool(__fastcall* TraceToExitFn)(Vector&, SDK::trace_t&, float, float, float, float, float, float, SDK::trace_t*);
+	static TraceToExitFn TraceToExit = (TraceToExitFn)UTILS::FindSignature("client_panorama.dll", "55 8B EC 83 EC 30 F3 0F 10 75");
+	if (!TraceToExit)
+	{
+		return false;
+	}//(Vector&, trace_t&, float, float, float, float, float, float, trace_t*);
+	_asm
+	{
+		push trace
+		push z2
+		push y2
+		push x2
+		push z
+		push y
+		push x
+		mov edx, tr
+		mov ecx, end
+		call TraceToExit
+		add esp, 0x1C
+	}
+}
+
+bool CAutoWall::HandleBulletPenetration(SDK::CSWeaponInfo *wpn_data, Autowall_Info &data)
+{
+	SDK::surfacedata_t *enter_surface_data = INTERFACES::PhysicsProps->GetSurfaceData(data.enter_trace.surface.surfaceProps);
+	int enter_material = enter_surface_data->game.material;
+	float enter_surf_penetration_mod = *(float*)((DWORD)enter_surface_data + 88);
+
+	data.trace_length += data.enter_trace.flFraction * data.trace_length_remaining;
+	data.current_damage *= pow((wpn_data->range_modifier), (data.trace_length * 0.002));
+
+	if ((data.trace_length > 3000.f) || (enter_surf_penetration_mod < 0.1f))
+		data.penetration_count = 0;
+
+	if (data.penetration_count <= 0)
+		return false;
+
+	Vector dummy;
+	SDK::trace_t trace_exit;
+	if (!TraceToExit(dummy, data.enter_trace, data.enter_trace.end.x, data.enter_trace.end.y, data.enter_trace.end.z, data.direction.x, data.direction.y, data.direction.z, &trace_exit))
+		return false;
+
+	SDK::surfacedata_t *exit_surface_data = INTERFACES::PhysicsProps->GetSurfaceData(trace_exit.surface.surfaceProps);
+	int exit_material = exit_surface_data->game.material;
+
+	float exit_surf_penetration_mod = *(float*)((DWORD)exit_surface_data + 88);
+	float final_damage_modifier = 0.16f;
+	float combined_penetration_modifier = 0.0f;
+
+	if (((data.enter_trace.contents & CONTENTS_GRATE) != 0) || (enter_material == 89) || (enter_material == 71))
+	{
+		combined_penetration_modifier = 3.0f;
+		final_damage_modifier = 0.05f;
+	}
+	else
+	{
+		combined_penetration_modifier = (enter_surf_penetration_mod + exit_surf_penetration_mod) * 0.5f;
+	}
+
+	if (enter_material == exit_material)
+	{
+		if (exit_material == 87 || exit_material == 85)
+			combined_penetration_modifier = 3.0f;
+		else if (exit_material == 76)
+			combined_penetration_modifier = 2.0f;
+	}
+
+	float v34 = fmaxf(0.f, 1.0f / combined_penetration_modifier);
+	float v35 = (data.current_damage * final_damage_modifier) + v34 * 3.0f * fmaxf(0.0f, (3.0f / wpn_data->penetration) * 1.25f);
+	float thickness = (trace_exit.end - data.enter_trace.end).Length();
+
+	thickness *= thickness;
+	thickness *= v34;
+	thickness /= 24.0f;
+
+	float lost_damage = fmaxf(0.0f, v35 + thickness);
+
+	if (lost_damage > data.current_damage)
+		return false;
+
+	if (lost_damage >= 0.0f)
+		data.current_damage -= lost_damage;
+
+	if (data.current_damage < 1.0f)
+		return false;
+
+	data.start = trace_exit.end;
+	data.penetration_count--;
+
+	return true;
+}
+
+
 CAutoWall::Autowall_Return_Info CAutoWall::CalculateDamage(Vector start, Vector end, SDK::CBaseEntity* from_entity, SDK::CBaseEntity* to_entity)
 {
 	// default values for return info, in case we need to return abruptly
@@ -59,8 +156,8 @@ CAutoWall::Autowall_Return_Info CAutoWall::CalculateDamage(Vector start, Vector 
 	if (!weapon_info)
 		return return_info;
 
-	autowall_info.current_damage = weapon_info->iDamage;
-	const float range = min(weapon_info->flRange, (start - end).Length());
+	autowall_info.current_damage = weapon_info->damage;
+	const float range = min(weapon_info->range, (start - end).Length());
 	end = start + (autowall_info.direction * range);
 
 
@@ -90,7 +187,7 @@ CAutoWall::Autowall_Return_Info CAutoWall::CalculateDamage(Vector start, Vector 
 				continue;
 			}
 			 
-			ScaleDamage(autowall_info.enter_trace.hitGroup, autowall_info.enter_trace.m_pEnt, weapon_info->flArmorRatio, autowall_info.current_damage);
+			ScaleDamage(autowall_info.enter_trace.hitGroup, autowall_info.enter_trace.m_pEnt, weapon_info->armor_ratio, autowall_info.current_damage);
 
 			// fill the return info
 			return_info.damage = autowall_info.current_damage;
@@ -109,10 +206,6 @@ CAutoWall::Autowall_Return_Info CAutoWall::CalculateDamage(Vector start, Vector 
 }
 bool CAutoWall::CanPenetrate(SDK::CBaseEntity* attacker, Autowall_Info &info, SDK::CSWeaponInfo* weapon_data)
 {
-	typedef bool(__thiscall* HandleBulletPenetrationFn)(SDK::CBaseEntity*, float&, int&, int*, SDK::trace_t*, Vector*, float, float, float, int, int, float, int*, Vector*, float, float, float*);
-	static HandleBulletPenetrationFn HBP = reinterpret_cast<HandleBulletPenetrationFn>(UTILS::FindPattern("client.dll",
-		(PBYTE)"\x53\x8B\xDC\x83\xEC\x08\x83\xE4\xF8\x83\xC4\x04\x55\x8B\x6B\x04\x89\x6C\x24\x04\x8B\xEC\x83\xEC\x78\x8B\x53\x14",
-		"xxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
 
 	auto enter_surface_data = INTERFACES::PhysicsProps->GetSurfaceData(info.enter_trace.surface.surfaceProps);
 	if (!enter_surface_data)
@@ -125,10 +218,10 @@ bool CAutoWall::CanPenetrate(SDK::CBaseEntity* attacker, Autowall_Info &info, SD
 	// glass and shit gg
 	if (info.enter_trace.m_pEnt && !strcmp("CBreakableSurface",
 		info.enter_trace.m_pEnt->GetClientClass()->m_pNetworkName))
-		*reinterpret_cast<byte*>(uintptr_t(info.enter_trace.m_pEnt + 0x27C)) = 2;
+		*reinterpret_cast<byte*>(uintptr_t(info.enter_trace.m_pEnt + 0x2EC)) = 2;
 
 	is_autowalling = true;
-	bool return_value = !HBP(attacker, weapon_data->flPenetration, material, &use_static_values, &info.enter_trace, &info.direction, 0.f, enter_surface_data->game.flPenetrationModifier, enter_surface_data->game.flDamageModifier, 0, mask, weapon_data->flPenetration, &info.penetration_count, &info.current_position, 0.f, 0.f, &info.current_damage);
+	bool return_value = !HandleBulletPenetration(weapon_data, info);
 	is_autowalling = false;
 	return return_value;
 }

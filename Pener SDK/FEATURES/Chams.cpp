@@ -11,21 +11,21 @@
 
 void CChams::InitKeyValues(SDK::KeyValues* kv_, std::string name_)
 {
-	static auto address = UTILS::FindSignature("client.dll", "55 8B EC 51 33 C0 C7 45");
+	static auto address = UTILS::FindSignature("client_panorama.dll", "55 8B EC 51 33 C0 C7 45");
 	using Fn = void(__thiscall*)(void* thisptr, const char* name);
 	reinterpret_cast< Fn >(address)(kv_, name_.c_str());
 }
 
 void CChams::LoadFromBuffer(SDK::KeyValues* vk_, std::string name_, std::string buffer_)
 {
-	static auto address = UTILS::FindSignature("client.dll", "55 8B EC 83 E4 F8 83 EC 34 53 8B 5D 0C 89 4C 24 04");
+	static auto address = UTILS::FindSignature("client_panorama.dll", "55 8B EC 83 E4 F8 83 EC 34 53 8B 5D 0C 89 4C 24 04");
 	using Fn = void(__thiscall*)(
 		void* thisptr, const char* resourceName,
 		const char* pBuffer, void* pFileSystem,
-		const char* pPathID, void* pfnEvaluateSymbolProc);
+		const char* pPathID, void* pfnEvaluateSymbolProc, void* kek);
 
 	reinterpret_cast< Fn >(address)(
-		vk_, name_.c_str(), buffer_.c_str(), nullptr, nullptr, nullptr);
+		vk_, name_.c_str(), buffer_.c_str(), nullptr, nullptr, nullptr, 0);
 }
 
 SDK::IMaterial* CChams::CreateMaterial(bool ignorez, bool lit, bool wireframe)
