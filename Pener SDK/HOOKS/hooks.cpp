@@ -54,13 +54,144 @@ namespace INIT
 static bool tick = false;
 
 //--- Declare Signatures and Patterns Here ---///
-static auto CAM_THINK = UTILS::FindSignature("client_panorama.dll", "85 C0 75 30 38 86");
-//SDK::CGlowObjectManager* pGlowObjectManager = (SDK::CGlowObjectManager*)(UTILS::FindSignature("client_panorama.dll", "0F 11 05 ? ? ? ? 83 C8 01") + 0x3);
-static auto linegoesthrusmoke = UTILS::FindPattern("client_panorama.dll", (PBYTE)"\x55\x8B\xEC\x83\xEC\x08\x8B\x15\x00\x00\x00\x00\x0F\x57\xC0", "xxxxxxxx????xxx");
+static auto CAM_THINK = UTILS::FindSignature("client.dll", "85 C0 75 30 38 86");
+//SDK::CGlowObjectManager* pGlowObjectManager = (SDK::CGlowObjectManager*)(UTILS::FindSignature("client.dll", "0F 11 05 ? ? ? ? 83 C8 01") + 0x3);
+static auto linegoesthrusmoke = UTILS::FindPattern("client.dll", (PBYTE)"\x55\x8B\xEC\x83\xEC\x08\x8B\x15\x00\x00\x00\x00\x0F\x57\xC0", "xxxxxxxx????xxx");
 
 int ground_tick;
 
+
 Vector OldOrigin;
+
+void AnimFix(SDK::CBaseEntity* entity)
+{
+
+	auto local_player = INTERFACES::ClientEntityList->GetClientEntity(INTERFACES::Engine->GetLocalPlayer());
+
+	if (!local_player)
+		return;
+
+	bool is_local_player = entity == local_player;
+	bool is_teammate = local_player->GetTeam() == entity->GetTeam() && !is_local_player;
+
+	if (is_local_player)
+		return;
+
+
+
+	struct clientanimating_t
+	{
+		SDK::CBaseAnimating *pAnimating;
+		unsigned int	flags;
+		clientanimating_t(SDK::CBaseAnimating *_pAnim, unsigned int _flags) : pAnimating(_pAnim), flags(_flags) {}
+	};
+
+
+	clientanimating_t *animating = nullptr;
+	int animflags;
+
+	const unsigned int FCLIENTANIM_SEQUENCE_CYCLE = 0x00000001;
+
+
+	SDK::CAnimationLayer AnimLayer[15];
+
+	int cnt = 15;
+	for (int i = 0; i < cnt; i++)
+	{
+		AnimLayer[i] = entity->GetAnimOverlay(i);
+	}
+
+	float flPoseParameter[24];
+	float* pose = (float*)((uintptr_t)entity + 0x2764);
+	memcpy(&flPoseParameter, pose, sizeof(float) * 24);
+
+	Vector TargetEyeAngles = *entity->GetEyeAnglesPointer();
+
+	bool bForceAnimationUpdate = entity->GetEyeAnglesPointer()->x != TargetEyeAngles.x || entity->GetEyeAnglesPointer()->y != TargetEyeAngles.y;
+
+	if (bForceAnimationUpdate)
+	{
+		//Update animations and pose parameters
+		clientanimating_t *animating = nullptr;
+		int animflags;
+
+		//Make sure game is allowed to client side animate. Probably unnecessary
+		for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+		{
+			clientanimating_t *tanimating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+			SDK::CBaseEntity *pAnimEntity = (SDK::CBaseEntity*)tanimating->pAnimating;
+			if (pAnimEntity == entity)
+			{
+				animating = tanimating;
+				animflags = tanimating->flags;
+				tanimating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
+				break;
+			}
+		}
+
+		//Update animations/poses
+		entity->UpdateClientSideAnimation();
+
+		//Restore anim flags
+		if (animating)
+			animating->flags = animflags;
+	}
+	for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+	{
+		clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+		SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
+		if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
+		{
+
+			int TickReceivedNetUpdate[65];
+
+			TickReceivedNetUpdate[entity->GetIndex()] = INTERFACES::Globals->tickcount;
+
+			bool HadClientAnimSequenceCycle[65];
+
+			int ClientSideAnimationFlags[65];
+			bool IsBreakingLagCompensation[65];
+			IsBreakingLagCompensation[entity->GetIndex()] = !Entity->GetIsDormant() && entity->GetVecOrigin().LengthSqr() > (64.0f * 64.0f);
+
+			unsigned int flags = animating->flags;
+			ClientSideAnimationFlags[entity->GetIndex()] = flags;
+			HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
+			if (HadClientAnimSequenceCycle[entity->GetIndex()])
+			{
+				if (IsBreakingLagCompensation[entity->GetIndex()] && INTERFACES::Globals->tickcount != TickReceivedNetUpdate[entity->GetIndex()])
+				{
+					Entity->UpdateClientSideAnimation();
+					//Store the new animations
+					Entity->CopyPoseParameters(flPoseParameter);
+					Entity->CopyAnimLayers(AnimLayer);
+				}
+			}
+		}
+	}
+	if (is_local_player) {
+
+		for (unsigned int i = 0; i < INTERFACES::g_ClientSideAnimationList->count; i++)
+		{
+			clientanimating_t *animating = (clientanimating_t*)INTERFACES::g_ClientSideAnimationList->Retrieve(i, sizeof(clientanimating_t));
+			SDK::CBaseEntity *Entity = (SDK::CBaseEntity*)animating->pAnimating;
+			if (Entity != local_player && !Entity->GetIsDormant() && Entity->GetHealth() > 0)
+			{
+				bool HadClientAnimSequenceCycle[65];
+
+				int ClientSideAnimationFlags[65];
+
+				unsigned int flags = animating->flags;
+				ClientSideAnimationFlags[entity->GetIndex()] = flags;
+				HadClientAnimSequenceCycle[entity->GetIndex()] = (flags & FCLIENTANIM_SEQUENCE_CYCLE);
+
+				if (HadClientAnimSequenceCycle[entity->GetIndex()])
+				{
+					animating->flags |= FCLIENTANIM_SEQUENCE_CYCLE;
+				}
+			}
+		}
+	}
+}
 
 void ground_ticks()
 {
@@ -127,7 +258,7 @@ namespace HOOKS
 			if (SETTINGS::settings.strafe_bool)
 				movement->autostrafer(cmd);
 
-			for (int i = 1; i < 65; i++)
+			for (int i = 1; i <= 65; i++)
 			{
 				auto entity = INTERFACES::ClientEntityList->GetClientEntity(i);
 
@@ -167,7 +298,7 @@ namespace HOOKS
 
 			GLOBAL::LocalPlayer = local_player;
 
-			//prediction->run_prediction(cmd); //start prediction
+			prediction->run_prediction(cmd); //start prediction
 			{
 				if (SETTINGS::settings.lag_bool)
 					fakelag->do_fakelag(cmd);
@@ -188,18 +319,30 @@ namespace HOOKS
 
 				if (SETTINGS::settings.aa_bool)
 				{
-					OldOrigin = local_player->GetAbsOrigin();
-					GLOBAL::fake_angles = cmd->viewangles;
-					GLOBAL::real_angles = cmd->viewangles;
+					if (!GLOBAL::should_send_packet)
+						GLOBAL::real_angles = cmd->viewangles;
+					else {
+						OldOrigin = local_player->GetAbsOrigin();
+						GLOBAL::fake_angles = cmd->viewangles;
+					}
 				}
 				else
 				{
 					INTERFACES::Engine->GetViewAngles(GLOBAL::real_angles);
 					INTERFACES::Engine->GetViewAngles(GLOBAL::fake_angles);
 				}
-			
+				
+				auto Animations = local_player->GetAnimState();
+				if (!Animations)
+					return false;
+
+				if (Animations->m_iLastClientSideAnimationUpdateFramecount)
+					Animations->m_iLastClientSideAnimationUpdateFramecount--;
+
+				if (Animations->m_flLastClientSideAnimationUpdateTime)
+					Animations->m_flLastClientSideAnimationUpdateTime -= INTERFACES::Globals->interval_per_tick;
 			}
-		//	prediction->end_prediction(cmd); //end prediction
+			prediction->end_prediction(cmd); //end prediction
 		}
 
 
@@ -239,7 +382,7 @@ namespace HOOKS
 
 			UTILS::INPUT::input_handler.Update();
 
-			static SDK::ConVar* PostProcVar = INTERFACES::cvar->FindVar("mat_postprocess_enable");
+			SDK::ConVar* PostProcVar = INTERFACES::cvar->FindVar("mat_postprocess_enable");
 			if (PostProcVar->fValue != 0)
 				PostProcVar->SetValue("0");
 
@@ -298,6 +441,40 @@ namespace HOOKS
 			if (INTERFACES::Engine->IsConnected() && INTERFACES::Engine->IsInGame())
 			{
 
+				for (int i = 1; i < 65; i++)
+				{
+					auto entity = INTERFACES::ClientEntityList->GetClientEntity(i);
+					auto local_player = INTERFACES::ClientEntityList->GetClientEntity(INTERFACES::Engine->GetLocalPlayer());
+
+					if (!entity)
+						continue;
+
+					if (!local_player)
+						continue;
+
+					bool is_local_player = entity == local_player;
+					bool is_teammate = local_player->GetTeam() == entity->GetTeam() && !is_local_player;
+
+					if (is_local_player)
+						continue;
+
+					if (is_teammate)
+						continue;
+
+					if (entity->GetHealth() <= 0)
+						continue;
+
+						auto Animationss = entity->GetAnimState();
+					if (Animationss->m_iLastClientSideAnimationUpdateFramecount)
+						Animationss->m_iLastClientSideAnimationUpdateFramecount--;
+
+					if (Animationss->m_flLastClientSideAnimationUpdateTime)
+						Animationss->m_flLastClientSideAnimationUpdateTime -= INTERFACES::Globals->interval_per_tick;
+
+
+					AnimFix(entity);
+				}
+
 				auto local_player = INTERFACES::ClientEntityList->GetClientEntity(INTERFACES::Engine->GetLocalPlayer());
 
 				if (!local_player)
@@ -316,6 +493,7 @@ namespace HOOKS
 					}
 				}
 
+
 				//--- Thirdperson Deadflag Stuff ---//
 				if (in_tp)
 				{
@@ -325,12 +503,10 @@ namespace HOOKS
 						return;
 
 					if (animstate->m_bInHitGroundAnimation && ground_tick > 1)
-						*(Vector*)((DWORD)local_player + 0x31D8) = Vector(0, GLOBAL::real_angles.y, 0.f);
+						*(Vector*)((DWORD)local_player + 0x31C8) = Vector(0, GLOBAL::real_angles.y, 0.f);
 					else
-						*(Vector*)((DWORD)local_player + 0x31D8) = Vector(GLOBAL::real_angles.x, GLOBAL::real_angles.y, 0.f);
+						*(Vector*)((DWORD)local_player + 0x31C8) = Vector(GLOBAL::real_angles.x, GLOBAL::real_angles.y, 0.f);
 				}
-
-				
 			}
 			break;
 		case FRAME_NET_UPDATE_START:
@@ -435,7 +611,13 @@ namespace HOOKS
 	{
 		if (INTERFACES::Engine->IsConnected() && INTERFACES::Engine->IsInGame())
 		{
-			
+			if (SETTINGS::settings.noflash) {
+				SDK::IMaterial* Flash = INTERFACES::MaterialSystem->FindMaterial("effects\\flashbang", "ClientEffect textures");
+				SDK::IMaterial* FlashWhite = INTERFACES::MaterialSystem->FindMaterial("effects\\flashbang_white", "ClientEffect textures");
+				Flash->SetMaterialVarFlag(SDK::MATERIAL_VAR_NO_DRAW, true);
+				FlashWhite->SetMaterialVarFlag(SDK::MATERIAL_VAR_NO_DRAW, true);
+				original_draw_model_execute(ecx, context, state, render_info, matrix);
+			}
 			if (INTERFACES::Engine->IsConnected() && INTERFACES::Engine->IsInGame())
 			{
 				for (int i = 1; i < 65; i++)
@@ -456,12 +638,6 @@ namespace HOOKS
 				}
 			}
 			
-			if (SETTINGS::settings.noflash) {
-				static SDK::IMaterial* Flash = INTERFACES::MaterialSystem->FindMaterial("effects\\flashbang", "ClientEffect textures");
-				static SDK::IMaterial* FlashWhite = INTERFACES::MaterialSystem->FindMaterial("effects\\flashbang_white", "ClientEffect textures");
-				Flash->SetMaterialVarFlag(SDK::MATERIAL_VAR_NO_DRAW, true);
-				FlashWhite->SetMaterialVarFlag(SDK::MATERIAL_VAR_NO_DRAW, true);
-			}
 		}
 
 		original_draw_model_execute(ecx, context, state, render_info, matrix);
@@ -494,8 +670,8 @@ namespace HOOKS
 		if (is_clicked)
 		{
 			menu_open = !menu_open;
-			//std::string msg = "cl_mouseenable " + std::to_string(!menu_open);
-		//	INTERFACES::Engine->ClientCmd_Unrestricted(msg.c_str(), 0);
+			std::string msg = "cl_mouseenable " + std::to_string(!menu_open);
+			INTERFACES::Engine->ClientCmd_Unrestricted(msg.c_str(), 0);
 		}
 	}
 
@@ -752,7 +928,7 @@ namespace HOOKS
 					if (!glow_object->m_pEntity || glow_object->IsUnused())
 						continue;
 
-					if (m_entity->GetClientClass()->m_ClassID == 38)
+					if (m_entity->GetClientClass()->m_ClassID == 35)
 					{
 						if (m_entity->GetTeam() == m_local->GetTeam() && m_entity != m_local)
 							continue;
@@ -848,18 +1024,18 @@ namespace HOOKS
 
 			for (auto mat_s : vistasmoke_wireframe)
 			{
-				static SDK::IMaterial* mat = INTERFACES::MaterialSystem->FindMaterial(mat_s, TEXTURE_GROUP_OTHER);
+				SDK::IMaterial* mat = INTERFACES::MaterialSystem->FindMaterial(mat_s, TEXTURE_GROUP_OTHER);
 				mat->SetMaterialVarFlag(SDK::MATERIAL_VAR_WIREFRAME, true); //wireframe
 			}
 
 			for (auto mat_n : vistasmoke_nodraw)
 			{
-				static SDK::IMaterial* mat = INTERFACES::MaterialSystem->FindMaterial(mat_n, TEXTURE_GROUP_OTHER);
+				SDK::IMaterial* mat = INTERFACES::MaterialSystem->FindMaterial(mat_n, TEXTURE_GROUP_OTHER);
 				mat->SetMaterialVarFlag(SDK::MATERIAL_VAR_NO_DRAW, true);
 			}
 
-			static int* smokecount = *(int**)(UTILS::FindSignature("client_panorama.dll", "8B 1D ? ? ? ? 56 33 F6 57 85 DB") + 0x2);
-			*(int*)(smokecount) = 0;
+			static auto smokecout = *(DWORD*)(linegoesthrusmoke + 0x8);
+			*(int*)(smokecout) = 0;
 		}
 	}
 	void __fastcall HookedOverrideView(void* ecx, void* edx, SDK::CViewSetup* pSetup)
@@ -976,7 +1152,7 @@ namespace HOOKS
 	{
 		iclient_hook_manager.Init(INTERFACES::Client);
 		original_frame_stage_notify = reinterpret_cast<FrameStageNotifyFn>(
-			iclient_hook_manager.HookFunction<FrameStageNotifyFn>(37, HookedFrameStageNotify));
+			iclient_hook_manager.HookFunction<FrameStageNotifyFn>(36, HookedFrameStageNotify));
 
 		panel_hook_manager.Init(INTERFACES::Panel);
 		original_paint_traverse = reinterpret_cast<PaintTraverseFn>(
@@ -1004,7 +1180,7 @@ namespace HOOKS
 		if (INIT::Window)
 			INIT::OldWindow = (WNDPROC)SetWindowLongPtr(INIT::Window, GWL_WNDPROC, (LONG_PTR)Hooked_WndProc);
 
-		static DWORD DeviceStructureAddress = **(DWORD**)(UTILS::FindSignature("shaderapidx9.dll", "A1 ?? ?? ?? ?? 50 8B 08 FF 51 0C") + 1);
+		DWORD DeviceStructureAddress = **(DWORD**)(UTILS::FindSignature("shaderapidx9.dll", "A1 ?? ?? ?? ?? 50 8B 08 FF 51 0C") + 1);
 		if (DeviceStructureAddress) {
 			direct.Init((DWORD**)DeviceStructureAddress);
 			oEndSceneReset = reinterpret_cast<EndSceneResetFn>(direct.HookFunction<EndSceneResetFn>(16, Hooked_EndScene_Reset));

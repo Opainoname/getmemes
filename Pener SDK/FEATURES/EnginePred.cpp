@@ -45,7 +45,7 @@ void CEnginePred::run_prediction(SDK::CUserCmd* cmd)
 	const auto getRandomSeed = [&]()
 	{
 		using MD5_PseudoRandomFn = unsigned long(__cdecl*)(std::uintptr_t);
-		static auto offset = UTILS::FindSignature("client_panorama.dll", "55 8B EC 83 E4 F8 83 EC 70 6A 58");
+		static auto offset = UTILS::FindSignature("client.dll", "55 8B EC 83 E4 F8 83 EC 70 6A 58");
 		static auto MD5_PseudoRandom = reinterpret_cast<MD5_PseudoRandomFn>(offset);
 		return MD5_PseudoRandom(cmd->command_number) & 0x7FFFFFFF;
 	};

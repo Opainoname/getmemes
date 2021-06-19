@@ -72,8 +72,8 @@ namespace SDK
 		}
 		void DrawSetTextureRGBA(int id, const unsigned char *rgba, int wide, int tall)
 		{
-			typedef void(__thiscall* Fn)(void*, int, const unsigned char*, int, int);
-			return  VMT::VMTHookManager::GetFunction<Fn>(this, 37)(this, id, rgba, wide, tall);
+			typedef void(__thiscall* Fn)(void*, int, const unsigned char *, int, int, int, bool);
+			return ((Fn)VMT::VMTHookManager::GetFunction<Fn>(this, 37))(this, id, rgba, wide, tall, 0, false);
 		}
 		void DrawTexturedPolygon(int n, Vertex_t *pVertice, bool bClipVertices = true)
 		{

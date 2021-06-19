@@ -39,36 +39,36 @@ namespace OFFSETS
 
 	void InitOffsets()
 	{
-		m_iHealth = 0x100;
-		m_fFlags = 0x104;
-		m_vecVelocity = 0x114;
-		m_flLowerBodyYawTarget = 0x3A74;
-		deadflag = 0x31D4;
-		m_vecOrigin = 0x138;
-		m_iTeamNum = 0xF4;
-		m_nTickBase = 0x342C;
-		m_bDormant = 0xED;
-		animstate = 0x3900;
-		m_Collision = 0x31C;
-		m_angEyeAngles = 0xB32C;
-		m_flSimulationTime = 0x268;
-		m_vecViewOffset = 0x108;
-		m_dwBoneMatrix = 0x26A8;
-		m_aimPunchAngle = 0x302C;
-		m_bGunGameImmunity = 0x3928;
-		m_nForceBone = 0x268C;
-		m_flPoseParameter = 0x2774;
-		dwGlowObjectManager = 0x5223730;
-		m_flNextPrimaryAttack = 0x3218;
-		m_flNextAttack = 0x2D70;
-		m_hActiveWeapon = 0x2EF8;
-		m_ArmorValue = 0xB328;
-		m_bHasHelmet = 0xB31C;
-		m_iObserverMode = 0x3374;
-		m_bIsScoped = 0x390A;
-		m_iAccount = 0xB314;
-		m_iPlayerC4 = 0x165C;
-		dwPlayerResource = 0x3112F6C;
-		m_iItemDefinitionIndex = 0x2FAA;
+		m_iHealth = 0xFC;
+		m_fFlags = 0x100;
+		m_vecVelocity = 0x110;
+		m_flLowerBodyYawTarget = 0x39DC;
+		deadflag = 0x31C4;
+		m_vecOrigin = 0x0134;
+		m_iTeamNum = 0xF0;
+		m_nTickBase = 0x3404;
+		m_bDormant = 0xE9;
+		animstate = 0x3874;
+		m_Collision = 0x318;
+		m_angEyeAngles = 0xB23C;
+		m_flSimulationTime = 0x264;
+		m_vecViewOffset = 0x104;
+		m_dwBoneMatrix = 0x2698;
+		m_aimPunchAngle = 0x301C;
+		m_bGunGameImmunity = 0x3894;
+		m_nForceBone = 0x267C;
+		m_flPoseParameter = 0x2764;
+		dwGlowObjectManager = 0x4F9D2B8;
+		m_flNextPrimaryAttack = 0x31D8;
+		m_flNextAttack = 0x2D60;
+		m_hActiveWeapon = 0x2EE8;
+		m_ArmorValue = 0xB238;
+		m_bHasHelmet = 0xB22C;
+		m_iObserverMode = 0x334C;
+		m_bIsScoped = 0x387E;
+		m_iAccount = 0xB228;
+		m_iPlayerC4 = 0x161C;
+		dwPlayerResource = 0x2EC3F5C;
+		m_iItemDefinitionIndex = 0x2F88;
 	}
 }
